@@ -1,0 +1,207 @@
+
+# 0. Setup
+
+
+library(GenomicRanges)
+library(ReMapEnrich)
+library(rtracklayer)
+library(ggplot2)
+library(reshape2)
+library(biomaRt)
+
+
+# 1. Load p53 and FoxM1 BED files
+
+
+p53_bed <- "C:/PathToBed.bed"
+foxm1_bed <- "C:/PathToBed.bed"
+
+if(!file.exists(p53_bed)) stop("p53 BED file not found!")
+if(!file.exists(foxm1_bed)) stop("FoxM1 BED file not found!")
+
+p53_gr <- bedToGranges(p53_bed)
+foxm1_gr <- bedToGranges(foxm1_bed)
+cat("Loaded p53 and FoxM1 BED files.\n")
+
+
+# 2. Compute overlapping peaks
+
+
+flank_size <- 5000  # expand ±5kb
+p53_exp <- resize(p53_gr, width = width(p53_gr) + 2*flank_size, fix = "center")
+foxm1_exp <- resize(foxm1_gr, width = width(foxm1_gr) + 2*flank_size, fix = "center")
+
+hits <- findOverlaps(p53_exp, foxm1_exp, ignore.strand = TRUE)
+cat("Number of overlapping peaks:", length(hits), "\n")
+if(length(hits) == 0) stop("No overlapping peaks found between p53 and FoxM1!")
+
+overlap_gr <- p53_exp[queryHits(hits)]
+
+# Save overlap BED
+overlap_bed_file <- "C:/PathToNewOverlapFile.bed"
+dir.create(dirname(overlap_bed_file), recursive = TRUE, showWarnings = FALSE)
+export(overlap_gr, con = overlap_bed_file, format = "BED")
+cat("Overlapping peaks saved to:", overlap_bed_file, "\n")
+
+
+# 2b. List loci of overlapping peaks with p53 and FoxM1 scores
+
+# Get matching indices
+p53_idx    <- queryHits(hits)
+foxm1_idx  <- subjectHits(hits)
+
+overlap_loci <- data.frame(
+  chr   = as.character(seqnames(p53_exp[p53_idx])),
+  start = start(p53_exp[p53_idx]),
+  end   = end(p53_exp[p53_idx]),
+  locus = paste0(
+    seqnames(p53_exp[p53_idx]), ":",
+    start(p53_exp[p53_idx]), "-",
+    end(p53_exp[p53_idx])
+  ),
+  p53_score   = mcols(p53_gr[p53_idx])$score,
+  foxm1_score = mcols(foxm1_gr[foxm1_idx])$score
+)
+
+# Remove duplicate loci (can occur if multiple FoxM1 peaks overlap same p53 peak)
+overlap_loci <- overlap_loci[!duplicated(overlap_loci$locus), ]
+
+# Save table
+loci_file <- "C:/PathToTable.txt"
+write.table(overlap_loci,
+            file = loci_file,
+            sep = "\t",
+            row.names = FALSE,
+            quote = FALSE)
+
+cat("Overlapping loci with p53 and FoxM1 scores saved to:", loci_file, "\n")
+
+# Preview
+head(overlap_loci)
+
+overlap_loci$center <- floor((overlap_loci$start + overlap_loci$end)/2)
+
+
+assign_genes <- function(loci_df) {
+  mart <- useMart("ensembl", dataset="hsapiens_gene_ensembl")
+  
+  genes_tbl <- getBM(
+    attributes=c("chromosome_name","start_position","end_position","hgnc_symbol"),
+    mart=mart
+  )
+  
+  genes_tbl <- genes_tbl[genes_tbl$chromosome_name %in% c(1:22,"X","Y") & genes_tbl$hgnc_symbol != "", ]
+  genes_tbl$chr <- paste0("chr", genes_tbl$chromosome_name)
+  
+  loci_df$gene_symbol <- NA_character_
+  
+  for(chr in unique(loci_df$chr)) {
+    loci_idx <- which(loci_df$chr == chr)
+    gene_idx <- which(genes_tbl$chr == chr)
+    
+    if(length(gene_idx) == 0) next
+    
+    gene_centers <- floor((genes_tbl$start_position[gene_idx] + genes_tbl$end_position[gene_idx]) / 2)
+    
+    for(i in loci_idx) {
+      d <- abs(gene_centers - loci_df$center[i])
+      loci_df$gene_symbol[i] <- genes_tbl$hgnc_symbol[gene_idx[which.min(d)]]
+    }
+  }
+  
+  loci_df
+}
+
+overlap_loci <- assign_genes(overlap_loci)
+overlap_loci$center <- NULL  # clean up temporary column
+cat("Assigned nearest genes to overlapping loci.\n")
+
+final_loci <- overlap_loci[, c("locus", "chr", "start", "end", "gene_symbol")]  # drop score columns
+
+# Sort alphabetically by gene_symbol
+final_loci <- final_loci[order(final_loci$gene_symbol), ]
+
+# Save final loci table
+out_file <- "C:/PathToLoci.txt"
+write.table(final_loci, out_file, sep="\t", row.names=FALSE, quote=FALSE)
+cat("Saved final loci table (sorted by gene) to:", out_file, "\n")
+
+
+# 3. Expand overlap for enrichment
+
+
+expand_size <- 1000
+overlap_expanded <- resize(overlap_gr, width = width(overlap_gr) + 2*expand_size, fix = "center")
+
+
+# 4. Load ReMap catalog
+
+
+remap_bed <- "C:/PathToRemapCatalog.bed"
+remapCatalog <- bedToGranges(remap_bed)
+cat("Loaded ReMap catalog.\n")
+
+
+# 5. Run enrichment
+
+
+enrichment_overlap <- enrichment(overlap_expanded, remapCatalog, byChrom = TRUE)
+cat("Enrichment analysis completed.\n")
+
+# Save enrichment table
+write.table(enrichment_overlap,
+            "C:/PathToEnrichment.txt",
+            sep = "\t", row.names = FALSE, quote = FALSE)
+cat("Enrichment table saved.\n")
+
+
+# 6. Dot plot of top 20 enriched TFs
+
+
+enrich_clean <- enrichment_overlap[complete.cases(enrichment_overlap), ]
+enrich_plot <- subset(enrich_clean, is.finite(effect.size) & is.finite(p.value))
+
+top20 <- head(enrich_plot[order(-enrich_plot$effect.size), ], 20)
+top20$TF <- sub("^[^.]+\\.([^.]+)\\..*$", "\\1", top20$category)
+top20$TF <- factor(top20$TF, levels = rev(unique(top20$TF)))
+top20$log10p <- -log10(top20$p.value + 1e-300)
+
+ggplot(top20, aes(x = effect.size, y = TF)) +
+  geom_point(aes(size = nb.overlaps, color = log10p), alpha = 0.8) +
+  scale_color_gradient(low = "grey70", high = "red") +
+  scale_size_continuous(range = c(3, 10)) +
+  theme_minimal(base_size = 14) +
+  labs(
+    x = "Effect Size (log enrichment)",
+    y = "Transcription Factor",
+    color = "-log10(p-value)",
+    size = "Number of Overlapping Peaks",
+    title = "Top 20 TFs Enriched in p53-FoxM1 Overlapping Regions"
+  )
+
+
+# 7. Bar plot of top 20 enriched TFs
+
+# Extract TF names for the full enrichment table
+enrich_plot$TF <- sub("^[^.]+\\.([^.]+)\\..*$", "\\1", enrich_plot$category)
+
+# Aggregate number of overlaps per TF
+top_nb_tf <- aggregate(nb.overlaps ~ TF, data = enrich_plot, sum)
+
+# Keep top 20 TFs
+top_nb_tf <- head(top_nb_tf[order(-top_nb_tf$nb.overlaps), ], 20)
+
+# Set factor levels safely
+top_nb_tf$TF <- factor(top_nb_tf$TF, levels = rev(top_nb_tf$TF))
+
+# Bar plot
+ggplot(top_nb_tf, aes(x = TF, y = nb.overlaps)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  theme_minimal(base_size = 14) +
+  labs(
+    x = "Transcription Factor",
+    y = "Number of Overlapping Peaks",
+    title = "Top 20 TFs by Number of Overlaps\nin p53–FoxM1 Overlapping Regions"
+  ) +
+  coord_flip()
+
