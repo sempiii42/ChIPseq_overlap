@@ -1,5 +1,5 @@
-🧬 Promoter Co-binding Analysis with ReMap 2022
-📖 Overview
+\# 🧬 Promoter Co-binding Analysis with ReMap 2022
+## 📖 Overview
 
 This project identifies transcription factors (TFs) that co-bind the promoter regions of two genes using the ReMap 2022 ChIP-seq catalog.
 
@@ -17,7 +17,7 @@ Ranking of TF binding strength
 
 Visualization of results
 
-⚙️ Requirements
+\## ⚙️ Requirements
 Install required R packages
 install.packages(c("ggplot2", "dplyr", "stringr", "tidyr"))
 BiocManager::install(c("GenomicRanges", "ReMapEnrich"))
@@ -28,18 +28,19 @@ library(ggplot2)
 library(stringr)
 library(dplyr)
 library(tidyr)
-📂 Input Data
+## 📂 Input Data
 
 ReMap 2022 catalog (BED format)
 
 Set the path in your script:
 
-catalog_bed <- "C:/PathToReMapCatalog.bed"
+catalog\_bed <- "C:/PathToReMapCatalog.bed"
 
 Download from:
 http://remap.univ-amu.fr/
 
-🔬 Analysis Workflow
+\## 🔬 Analysis Workflow
+
 1. Define Promoter Regions
 
 Promoter regions are defined relative to the transcription start site (TSS):
@@ -49,7 +50,7 @@ Promoter regions are defined relative to the transcription start site (TSS):
 500 bp downstream
 
 2. Load ReMap Catalog
-remapCatalog <- bedToGranges(catalog_bed)
+remapCatalog <- bedToGranges(catalog\_bed)
 3. Perform Enrichment Analysis
 enrichment(promoter, remapCatalog, byChrom = TRUE)
 4. Find TF Binding Overlaps
@@ -66,7 +67,7 @@ Binding scores
 TF names (parsed from dataset ID)
 
 5. Identify Shared TF Datasets
-shared_datasets <- intersect(datasets_gene1, datasets_gene2)
+shared\_datasets <- intersect(datasets\_gene1, datasets\_gene2)
 
 This step identifies TFs that bind both promoter regions.
 
@@ -78,13 +79,14 @@ Keep the highest-scoring peak per promoter
 
 Compute:
 
-min_score = min(gene1_score, gene2_score)
+min\_score = min(gene1\_score, gene2\_score)
 
-Rank datasets by descending min_score
+Rank datasets by descending min\_score
 
 This ensures strong binding in both promoters.
 
-📊 Outputs
+\## 📊 Outputs
+
 1. SharedPeaks.txt
 
 All peaks from TF datasets shared between promoters
@@ -99,9 +101,9 @@ Scores for both promoters
 
 Genomic coordinates
 
-Ranking metric (min_score)
+Ranking metric (min\_score)
 
-📈 Visualization
+\## 📈 Visualization
 
 A grouped bar plot is generated showing:
 
@@ -109,17 +111,17 @@ Top 10 TF datasets
 
 Binding scores for both promoter regions
 
-⚠️ Notes / Known Issues
+\## ⚠️ Notes / Known Issues
 
-Some variables are overwritten (e.g., gene1_best, df_gene1)
+Some variables are overwritten (e.g., gene1\_best, df\_gene1)
 
-gene2 promoter is incorrectly defined using gene1_tss
+gene2 promoter is incorrectly defined using gene1\_tss
 
 intersect() is applied to the same dataset instead of gene1 vs gene2
 
 ➡️ These should be corrected to ensure accurate results.
 
-🚀 Future Improvements
+\## 🚀 Future Improvements
 
 Support multiple genes
 
@@ -129,7 +131,8 @@ Integrate motif enrichment analysis
 
 Automate reporting and figure export
 
-👤 Author
+\## 👤 Author
 
-Your Name
-Your Institution
+Sem Peijnenborgh
+Meduni Graz
+
