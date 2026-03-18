@@ -1,0 +1,246 @@
+# Load libraries
+
+library(ReMapEnrich)
+library(GenomicRanges)
+library(ggplot2)
+library(stringr)
+library(dplyr)
+
+
+# 1. Define promoter regions
+
+
+# gene1 transcription start site
+gene1_chr <- "chr15"
+gene1_tss <- 287711
+gene1_strand <- "+"
+
+gene1_promoter <- GRanges(
+  seqnames = gene1_chr,
+  ranges = IRanges(start = gene1_tss - 2000,
+                   end   = gene1_tss + 500),
+  strand = gene1_strand
+)
+
+# ---------- gene1 ----------
+gene2_chr <- "chr17"
+gene2_tss <- 7667421
+gene2_strand <- "-"
+
+gene2_promoter <- GRanges(
+  seqnames = gene2_chr,
+  ranges = IRanges(start = gene1_tss - 2000,
+                   end   = gene1_tss + 500),
+  strand = gene2_strand
+)
+
+
+# 2. Load the full ReMap 2022 catalog
+
+catalog_bed <- "C:/PathToReMapCatalog.bed"
+remapCatalog <- bedToGranges(catalog_bed)
+
+
+# 3. Enrichment analysis 
+
+enrichment_gene1 <- enrichment(gene2_promoter, remapCatalog, byChrom = TRUE)
+enrichment_gene1 <- enrichment(gene1_promoter, remapCatalog, byChrom = TRUE)
+
+enrichment_gene1 <- enrichment_gene1[complete.cases(enrichment_gene1), ]
+enrichment_gene1 <- enrichment_gene1[complete.cases(enrichment_gene1), ]
+
+
+# 4. Find overlaps for each promoter
+
+
+# gene2 overlaps
+hits_gene1 <- findOverlaps(gene2_promoter, remapCatalog)
+overlap_gene1 <- remapCatalog[subjectHits(hits_gene1)]
+
+df_gene1 <- data.frame(
+  seqnames = seqnames(overlap_gene1),
+  start = start(overlap_gene1),
+  end = end(overlap_gene1),
+  strand = strand(overlap_gene1),
+  dataset = mcols(overlap_gene1)$id,
+  score = mcols(overlap_gene1)$score
+) %>% distinct()
+
+df_gene1$TF <- sub("^[^.]+\\.([^.]+)\\..*$", "\\1", df_gene1$dataset)
+
+# gene1 overlaps
+hits_gene1 <- findOverlaps(gene1_promoter, remapCatalog)
+overlap_gene1 <- remapCatalog[subjectHits(hits_gene1)]
+
+df_gene1 <- data.frame(
+  seqnames = seqnames(overlap_gene1),
+  start = start(overlap_gene1),
+  end = end(overlap_gene1),
+  strand = strand(overlap_gene1),
+  dataset = mcols(overlap_gene1)$id,
+  score = mcols(overlap_gene1)$score
+) %>% distinct()
+
+df_gene1$TF <- sub("^[^.]+\\.([^.]+)\\..*$", "\\1", df_gene1$dataset)
+
+
+# 5. Identify TF datasets present in BOTH promoters
+
+shared_datasets <- intersect(df_gene1$dataset, df_gene1$dataset)
+
+length(shared_datasets)
+
+
+# 6. Keep only peaks from shared TFs
+#    (region-specific peaks preserved)
+
+shared_peaks_gene1 <- df_gene1 %>%
+  filter(dataset %in% shared_datasets) %>%
+  mutate(region = "gene2")
+
+shared_peaks_gene1 <- df_gene1 %>%
+  filter(dataset %in% shared_datasets) %>%
+  mutate(region = "gene1")
+
+
+# 7. Rank peaks by score
+
+ranked_shared_peaks <- bind_rows(shared_peaks_gene1, shared_peaks_gene1) %>%
+  arrange(desc(score))
+
+# View top shared peaks
+head(ranked_shared_peaks, 20)
+
+
+# 8. Save results
+
+write.table(ranked_shared_peaks,
+            file = "C:/PathToSharedPeaks.txt",
+            sep = "\t",
+            row.names = FALSE,
+            quote = FALSE)
+
+# 9. One row per ChIP-seq experiment with scores AND genomic locations
+
+
+# gene2: keep highest-scoring peak per dataset
+gene1_best <- shared_peaks_gene1 %>%
+  arrange(dataset, desc(score)) %>%
+  group_by(dataset) %>%
+  slice(1) %>%   # top peak only
+  ungroup() %>%
+  transmute(
+    dataset,
+    gene2_score = score,
+    gene2_chr   = seqnames,
+    gene2_start = start,
+    gene2_end   = end
+  )
+
+# gene1: keep highest-scoring peak per dataset
+gene1_best <- shared_peaks_gene1 %>%
+  arrange(dataset, desc(score)) %>%
+  group_by(dataset) %>%
+  slice(1) %>%
+  ungroup() %>%
+  transmute(
+    dataset,
+    gene1_score = score,
+    gene1_chr   = seqnames,
+    gene1_start = start,
+    gene1_end   = end
+  )
+
+# Merge gene2 and gene1 information
+experiment_table <- inner_join(gene1_best, gene1_best, by = "dataset")
+
+# Extract TF name
+experiment_table$TF <- sub("^[^.]+\\.([^.]+)\\..*$", "\\1", experiment_table$dataset)
+
+# Rank by weakest (minimum) score
+experiment_table <- experiment_table %>%
+  mutate(min_score = pmin(gene2_score, gene1_score)) %>%
+  arrange(desc(min_score))
+
+# Inspect
+head(experiment_table, 20)
+
+
+# 10. Grouped bar plot: Top 10 TFs with both scores
+
+# Select top 10 experiments by min_score
+top10_exp <- experiment_table %>%
+  slice(1:10)
+
+# Create unique labels to avoid duplicate factor levels
+top10_exp$TF_plot <- make.unique(top10_exp$TF)
+
+# Reshape to long format for ggplot
+library(tidyr)
+top10_long <- top10_exp %>%
+  select(TF_plot, gene2_score, gene1_score) %>%
+  pivot_longer(cols = c(gene2_score, gene1_score),
+               names_to = "Region",
+               values_to = "Score")
+
+# Make TF_plot a factor to preserve order (highest min_score on top)
+top10_long$TF_plot <- factor(top10_long$TF_plot, levels = rev(top10_exp$TF_plot))
+
+# Plot grouped bars
+ggplot(top10_long, aes(x = TF_plot, y = Score, fill = Region)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip() +
+  scale_fill_manual(values = c("gene2_score" = "steelblue", "gene1_score" = "firebrick")) +
+  theme_minimal(base_size = 14) +
+  labs(
+    x = "Transcription Factor (ChIP-seq experiment)",
+    y = "Score",
+    fill = "Region",
+    title = "Top 10 TF Experiments Co-binding gene2 and gene1 Promoters"
+  )
+
+# 11. Create ranked table by minimum score
+
+# Take the best peak per experiment per region
+gene1_best <- shared_peaks_gene1 %>%
+  group_by(dataset) %>%
+  slice_max(score, n = 1) %>%   # best peak
+  ungroup() %>%
+  transmute(
+    dataset,
+    TF = sub("^[^.]+\\.([^.]+)\\..*$", "\\1", dataset),
+    gene2_score = score,
+    gene2_chr = seqnames,
+    gene2_start = start,
+    gene2_end = end
+  )
+
+gene1_best <- shared_peaks_gene1 %>%
+  group_by(dataset) %>%
+  slice_max(score, n = 1) %>%   # best peak
+  ungroup() %>%
+  transmute(
+    dataset,
+    gene1_score = score,
+    gene1_chr = seqnames,
+    gene1_start = start,
+    gene1_end = end
+  )
+
+# Merge gene2 and gene1 scores by dataset
+experiment_table <- inner_join(gene1_best, gene1_best, by = "dataset")
+
+# Compute the lower score for ranking
+experiment_table <- experiment_table %>%
+  mutate(min_score = pmin(gene2_score, gene1_score)) %>%
+  arrange(desc(min_score))  # high → low ranking
+
+# Inspect top rows
+head(experiment_table, 20)
+
+# Save table
+write.table(experiment_table,
+            file = "C:/PathToRankedExperiments.txt",
+            sep = "\t",
+            row.names = FALSE,
+            quote = FALSE)

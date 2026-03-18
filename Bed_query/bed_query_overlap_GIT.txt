@@ -10,32 +10,32 @@ library(reshape2)
 library(biomaRt)
 
 
-# 1. Load p53 and FoxM1 BED files
+# 1. Load gene1 and gene2 BED files
 
 
-p53_bed <- "C:/PathToBed.bed"
-foxm1_bed <- "C:/PathToBed.bed"
+gene1_bed <- "C:/PathToBed.bed"
+gene2_bed <- "C:/PathToBed.bed"
 
-if(!file.exists(p53_bed)) stop("p53 BED file not found!")
-if(!file.exists(foxm1_bed)) stop("FoxM1 BED file not found!")
+if(!file.exists(gene1_bed)) stop("gene1 BED file not found!")
+if(!file.exists(gene2_bed)) stop("gene2 BED file not found!")
 
-p53_gr <- bedToGranges(p53_bed)
-foxm1_gr <- bedToGranges(foxm1_bed)
-cat("Loaded p53 and FoxM1 BED files.\n")
+gene1_gr <- bedToGranges(gene1_bed)
+gene2_gr <- bedToGranges(gene2_bed)
+cat("Loaded gene1 and gene2 BED files.\n")
 
 
 # 2. Compute overlapping peaks
 
 
 flank_size <- 5000  # expand ±5kb
-p53_exp <- resize(p53_gr, width = width(p53_gr) + 2*flank_size, fix = "center")
-foxm1_exp <- resize(foxm1_gr, width = width(foxm1_gr) + 2*flank_size, fix = "center")
+gene1_exp <- resize(gene1_gr, width = width(gene1_gr) + 2*flank_size, fix = "center")
+gene2_exp <- resize(gene2_gr, width = width(gene2_gr) + 2*flank_size, fix = "center")
 
-hits <- findOverlaps(p53_exp, foxm1_exp, ignore.strand = TRUE)
+hits <- findOverlaps(gene1_exp, gene2_exp, ignore.strand = TRUE)
 cat("Number of overlapping peaks:", length(hits), "\n")
-if(length(hits) == 0) stop("No overlapping peaks found between p53 and FoxM1!")
+if(length(hits) == 0) stop("No overlapping peaks found between gene1 and gene2!")
 
-overlap_gr <- p53_exp[queryHits(hits)]
+overlap_gr <- gene1_exp[queryHits(hits)]
 
 # Save overlap BED
 overlap_bed_file <- "C:/PathToNewOverlapFile.bed"
@@ -44,26 +44,26 @@ export(overlap_gr, con = overlap_bed_file, format = "BED")
 cat("Overlapping peaks saved to:", overlap_bed_file, "\n")
 
 
-# 2b. List loci of overlapping peaks with p53 and FoxM1 scores
+# 2b. List loci of overlapping peaks with gene1 and gene2 scores
 
 # Get matching indices
-p53_idx    <- queryHits(hits)
-foxm1_idx  <- subjectHits(hits)
+gene1_idx    <- queryHits(hits)
+gene2_idx  <- subjectHits(hits)
 
 overlap_loci <- data.frame(
-  chr   = as.character(seqnames(p53_exp[p53_idx])),
-  start = start(p53_exp[p53_idx]),
-  end   = end(p53_exp[p53_idx]),
+  chr   = as.character(seqnames(gene1_exp[gene1_idx])),
+  start = start(gene1_exp[gene1_idx]),
+  end   = end(gene1_exp[gene1_idx]),
   locus = paste0(
-    seqnames(p53_exp[p53_idx]), ":",
-    start(p53_exp[p53_idx]), "-",
-    end(p53_exp[p53_idx])
+    seqnames(gene1_exp[gene1_idx]), ":",
+    start(gene1_exp[gene1_idx]), "-",
+    end(gene1_exp[gene1_idx])
   ),
-  p53_score   = mcols(p53_gr[p53_idx])$score,
-  foxm1_score = mcols(foxm1_gr[foxm1_idx])$score
+  gene1_score   = mcols(gene1_gr[gene1_idx])$score,
+  gene2_score = mcols(gene2_gr[gene2_idx])$score
 )
 
-# Remove duplicate loci (can occur if multiple FoxM1 peaks overlap same p53 peak)
+# Remove duplicate loci (can occur if multiple gene2 peaks overlap same gene1 peak)
 overlap_loci <- overlap_loci[!duplicated(overlap_loci$locus), ]
 
 # Save table
@@ -74,7 +74,7 @@ write.table(overlap_loci,
             row.names = FALSE,
             quote = FALSE)
 
-cat("Overlapping loci with p53 and FoxM1 scores saved to:", loci_file, "\n")
+cat("Overlapping loci with gene1 and gene2 scores saved to:", loci_file, "\n")
 
 # Preview
 head(overlap_loci)
@@ -176,7 +176,7 @@ ggplot(top20, aes(x = effect.size, y = TF)) +
     y = "Transcription Factor",
     color = "-log10(p-value)",
     size = "Number of Overlapping Peaks",
-    title = "Top 20 TFs Enriched in p53-FoxM1 Overlapping Regions"
+    title = "Top 20 TFs Enriched in gene1-gene2 Overlapping Regions"
   )
 
 
@@ -201,7 +201,7 @@ ggplot(top_nb_tf, aes(x = TF, y = nb.overlaps)) +
   labs(
     x = "Transcription Factor",
     y = "Number of Overlapping Peaks",
-    title = "Top 20 TFs by Number of Overlaps\nin p53–FoxM1 Overlapping Regions"
+    title = "Top 20 TFs by Number of Overlaps\nin gene1–gene2 Overlapping Regions"
   ) +
   coord_flip()
 
