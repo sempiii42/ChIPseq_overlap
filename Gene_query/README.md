@@ -1,10 +1,9 @@
-Promoter Co-binding Analysis with ReMap 2022
-
-OVERVIEW
+🧬 Promoter Co-binding Analysis with ReMap 2022
+📖 Overview
 
 This project identifies transcription factors (TFs) that co-bind the promoter regions of two genes using the ReMap 2022 ChIP-seq catalog.
 
-The script performs:
+The workflow includes:
 
 Promoter definition
 
@@ -14,125 +13,123 @@ Overlap detection
 
 Identification of shared TF binding
 
-Ranking of TFs
+Ranking of TF binding strength
 
 Visualization of results
 
-REQUIREMENTS
-
-Install required R packages:
-
+⚙️ Requirements
+Install required R packages
 install.packages(c("ggplot2", "dplyr", "stringr", "tidyr"))
 BiocManager::install(c("GenomicRanges", "ReMapEnrich"))
-
-Load libraries:
-
+Load libraries
 library(ReMapEnrich)
 library(GenomicRanges)
 library(ggplot2)
 library(stringr)
 library(dplyr)
 library(tidyr)
+📂 Input Data
 
-INPUT DATA
+ReMap 2022 catalog (BED format)
 
-ReMap 2022 catalog (BED file)
-
-Set the path in the script:
+Set the path in your script:
 
 catalog_bed <- "C:/PathToReMapCatalog.bed"
 
 Download from:
 http://remap.univ-amu.fr/
 
-ANALYSIS WORKFLOW
+🔬 Analysis Workflow
+1. Define Promoter Regions
 
-DEFINE PROMOTER REGIONS
+Promoter regions are defined relative to the transcription start site (TSS):
 
-Promoters are defined as:
+2000 bp upstream
 
-2000 bp upstream of TSS
+500 bp downstream
 
-500 bp downstream of TSS
-
-LOAD REMAP CATALOG
-
+2. Load ReMap Catalog
 remapCatalog <- bedToGranges(catalog_bed)
-
-ENRICHMENT ANALYSIS
-
+3. Perform Enrichment Analysis
 enrichment(promoter, remapCatalog, byChrom = TRUE)
-
-FIND OVERLAPS
-
+4. Find TF Binding Overlaps
 hits <- findOverlaps(promoter, remapCatalog)
 
 Extract:
 
-Genomic coordinates
+Genomic coordinates (chr, start, end)
 
 Dataset IDs
 
-Scores
+Binding scores
 
 TF names (parsed from dataset ID)
 
-IDENTIFY SHARED TFs
-
+5. Identify Shared TF Datasets
 shared_datasets <- intersect(datasets_gene1, datasets_gene2)
 
-RANK TF BINDING
+This step identifies TFs that bind both promoter regions.
 
-For each dataset:
+6. Rank TF Binding Strength
 
-Keep highest scoring peak per promoter
+For each TF dataset:
 
-Compute minimum score:
+Keep the highest-scoring peak per promoter
+
+Compute:
 
 min_score = min(gene1_score, gene2_score)
 
-Rank in descending order
+Rank datasets by descending min_score
 
-OUTPUTS
+This ensures strong binding in both promoters.
 
-Files generated:
+📊 Outputs
+1. SharedPeaks.txt
 
-SharedPeaks.txt
+All peaks from TF datasets shared between promoters
 
-All peaks from shared TF datasets
+2. RankedExperiments.txt
 
-RankedExperiments.txt
+One row per TF dataset
 
-One row per TF experiment
-
-Includes scores and genomic locations
-
-VISUALIZATION
-
-A grouped bar plot is generated showing:
-
-Top 10 TF experiments
+Includes:
 
 Scores for both promoters
 
-NOTES / KNOWN ISSUES
+Genomic coordinates
+
+Ranking metric (min_score)
+
+📈 Visualization
+
+A grouped bar plot is generated showing:
+
+Top 10 TF datasets
+
+Binding scores for both promoter regions
+
+⚠️ Notes / Known Issues
 
 Some variables are overwritten (e.g., gene1_best, df_gene1)
 
-gene2 promoter currently uses incorrect coordinates (uses gene1_tss)
+gene2 promoter is incorrectly defined using gene1_tss
 
 intersect() is applied to the same dataset instead of gene1 vs gene2
 
-These should be corrected for accurate results.
+➡️ These should be corrected to ensure accurate results.
 
-FUTURE IMPROVEMENTS
+🚀 Future Improvements
 
 Support multiple genes
 
-Add statistical filtering
+Add statistical significance filtering
 
-Integrate motif analysis
+Integrate motif enrichment analysis
 
-Automate plotting and reporting
+Automate reporting and figure export
 
-AUTHOR
+👤 Author
+
+Your Name
+Your Institution
