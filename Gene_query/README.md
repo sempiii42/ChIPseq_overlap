@@ -1,4 +1,6 @@
 \# 🧬 Promoter Co-binding Analysis with ReMap 2022
+
+
 ## 📖 Overview
 
 This project identifies transcription factors (TFs) that co-bind the promoter regions of two genes using the ReMap 2022 ChIP-seq catalog.
@@ -17,6 +19,8 @@ Ranking of TF binding strength
 
 Visualization of results
 
+
+
 \## ⚙️ Requirements
 Install required R packages
 install.packages(c("ggplot2", "dplyr", "stringr", "tidyr"))
@@ -28,6 +32,8 @@ library(ggplot2)
 library(stringr)
 library(dplyr)
 library(tidyr)
+
+
 ## 📂 Input Data
 
 ReMap 2022 catalog (BED format)
@@ -38,6 +44,8 @@ catalog\_bed <- "C:/PathToReMapCatalog.bed"
 
 Download from:
 http://remap.univ-amu.fr/
+
+
 
 \## 🔬 Analysis Workflow
 
@@ -85,6 +93,8 @@ Rank datasets by descending min\_score
 
 This ensures strong binding in both promoters.
 
+
+
 \## 📊 Outputs
 
 1. SharedPeaks.txt
@@ -102,6 +112,8 @@ Scores for both promoters
 Genomic coordinates
 
 Ranking metric (min\_score)
+
+
 
 \## 📈 Visualization
 
@@ -121,6 +133,8 @@ intersect() is applied to the same dataset instead of gene1 vs gene2
 
 ➡️ These should be corrected to ensure accurate results.
 
+
+
 \## 🚀 Future Improvements
 
 Support multiple genes
@@ -130,6 +144,8 @@ Add statistical significance filtering
 Integrate motif enrichment analysis
 
 Automate reporting and figure export
+
+
 
 \## 👤 Author
 
