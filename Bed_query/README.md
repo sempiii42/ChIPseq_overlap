@@ -268,8 +268,5 @@ This workflow can be extended with:
 
 # Author
 
-Analysis pipeline for studying **co-binding of p53 and FoxM1 transcription factors** and identifying additional regulatory factors enriched in shared genomic regions.
-=======
-# ChIPseq_overlap
-This script requires the query of 2 ChIPseq bed files. It overlaps them, and maps their overlapping loci to genes in the Hg38 genome.
+Sem Peijnenborgh
 >>>>>>> aaeda1b35610967ad4d383eac16b427786ccaaae
